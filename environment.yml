@@ -1,4 +1,4 @@
-name: covid-19
+name: covid-19-farr
 channels:
   - conda-forge
   - defaults
