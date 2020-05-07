@@ -1,3 +1,5 @@
-Fitting the time-dependent transmission rate for COVID-19 from state-level data.  Original example from https://github.com/k-sys/covid-19, updated by Will M. Farr for a fully-Bayesian model using [Stan](http://mc-stan.org).
+# Measuring COVID-19 real-time transmission rate (Rt)
+A collection of work related to COVID-19
 
-Results of the original fit presented at https://rt.live/ .
+These are modified versions of [Kevin Systrom's](https://github.com/k-sys/covid-19/) and [William Farr's](https://github.com/farr/covid-19/) models for estimating Covid-19 Rt (transmission rate of Covid-19 in real-time.)
+
