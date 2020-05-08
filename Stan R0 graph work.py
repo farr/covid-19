@@ -12,7 +12,8 @@
 #     language: python
 #     name: python3
 # ---
-
+# %%
+from IPython import get_ipython
 # %% [markdown]
 # # Work file for plot
 
@@ -32,9 +33,10 @@ import pystan
 import scipy.stats as ss
 import seaborn as sns
 from tqdm import tqdm
-
-#sns.set_context('notebook')
-#sns.set_palette('colorblind')
+import numpy as np
+from matplotlib import pyplot as plt
+sns.set_context('notebook')
+sns.set_palette('colorblind')
 
 # %%
 loc_europe_EU = [
@@ -77,7 +79,6 @@ loc_non_europe = [
 
 ACTIVE_COUNTRIES = list(set(loc_europe_EU + loc_europe_others + loc_non_europe))
 
-
 # %%
 def write_to_file(obj, name, ext):
     filename = 'data/' + name + '.' + ext
@@ -95,6 +96,9 @@ def write_to_file(obj, name, ext):
         os.mkdir(dirpath)
         states.to_excel(filename)
 
+
+# %% [markdown]
+#  Download the dataset from Our World In Data (github rep)
 
 # %%
 url = 'https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/owid-covid-data.csv'
@@ -132,6 +136,20 @@ states = states.sort_index()
 
 
 
+
+
+# %%
+# customized layout
+
+from datetime import datetime as dtime
+from datetime import timedelta
+
+date_now = dtime.now()
+date_then = dtime.now() - timedelta(days=48)
+
+rtlive = ["#5db044", "#da5d5d", "#95a5a6", "#e74c3c", "#34495e"]
+sns.set_palette(rtlive)
+
 # %%
 def save_state_fits(fits, directory):
     try:
@@ -147,12 +165,16 @@ def save_state_fits(fits, directory):
 def load_state_fits(directory):
     fits = {}
     for f in glob.glob(os.path.join(directory, '*.nc')):
-
         k = os.path.splitext(os.path.split(f)[1])[0]
         fits[k] = az.from_netcdf(f)
     return fits
 
+# %%
+#save_state_fits(state_fits, 'state_fits_EUW')
 
+
+# %% [markdown]
+#  And make a plot that is similar to the one at http://rt.live
 # %%
 import glob
 from collections import OrderedDict 
@@ -161,24 +183,16 @@ state_fits = load_state_fits('state_fits_EUW')
 state_fits = OrderedDict(sorted(state_fits.items()))
 
 # %%
-from datetime import datetime as dtime
-from datetime import timedelta
-
-date_now = dtime.now()
-date_then = dtime.now() - timedelta(days=48)
-
-sns.set_context('notebook')
-#sns.set_palette('colorblind')
-flatui = ["#5db044", "#da5d5d", "#95a5a6", "#e74c3c", "#34495e"]
-sns.set_palette(flatui)
-
+# set customized palette
+sns.set_palette(rtlive)
 
 # %%
 nc = 3
 nr = 11
-state_count = 32
+# temporarily limit states for plot testing
+# state_count = 12
 
-fig, axes = subplots(nrows=nr, ncols=nc, figsize=(24, 5*nr))
+fig, axes = plt.subplots(nrows=nr, ncols=nc, figsize=(24, 5*nr))
 
 count = 0;
 for idx, ((k,fit), ax) in enumerate(zip(state_fits.items(), axes.flatten())):
@@ -186,11 +200,11 @@ for idx, ((k,fit), ax) in enumerate(zip(state_fits.items(), axes.flatten())):
     #if count >= state_count:
     #    break
     
-    m = median(fit.posterior.Rt, axis=(0,1))
-    hh = percentile(fit.posterior.Rt, 97.5, axis=(0,1))
-    h = percentile(fit.posterior.Rt, 84, axis=(0,1))
-    l = percentile(fit.posterior.Rt, 16, axis=(0,1))
-    ll = percentile(fit.posterior.Rt, 2.5, axis=(0,1))
+    m = np.median(fit.posterior.Rt, axis=(0,1))
+    hh = np.percentile(fit.posterior.Rt, 97.5, axis=(0,1))
+    h = np.percentile(fit.posterior.Rt, 84, axis=(0,1))
+    l = np.percentile(fit.posterior.Rt, 16, axis=(0,1))
+    ll = np.percentile(fit.posterior.Rt, 2.5, axis=(0,1))
 
     x = fit.posterior.Rt_dates.values
     line_1 = np.ones(len(x))
@@ -198,7 +212,7 @@ for idx, ((k,fit), ax) in enumerate(zip(state_fits.items(), axes.flatten())):
     # NOTE: try this approach instead (filling with NaN):
     m_good = m.copy()
     m_bad = m.copy()
-    m_good[m_good > 1.05] = np.nan
+    m_good[m_good > 1.30] = np.nan
     m_bad[m_bad <= 0.98] = np.nan
     
     ax.plot(x, m_good, ls='-', marker='', lw=1.5, color=sns.color_palette()[0])
@@ -210,12 +224,12 @@ for idx, ((k,fit), ax) in enumerate(zip(state_fits.items(), axes.flatten())):
     #ax.plot_date(x[good_dates], m[good_dates], ls='-', marker='', xdate=True, color=sns.color_palette()[0])
     #ax.fill_between(x, where(h<1, h, 1) , where(l<1, l, 1), alpha=0.10, color=sns.color_palette()[0])
     
-    ax.fill_between(x, where(hh<1, hh, 1) , where(ll<1, ll, 1), alpha=0.10, color=sns.color_palette()[0])
+    ax.fill_between(x, np.where(hh<1, hh, 1) , np.where(ll<1, ll, 1), alpha=0.10, color=sns.color_palette()[0])
     
     #ax.plot_date(x[bad_dates], m[bad_dates], ls='-', marker='', xdate=True, color=sns.color_palette()[1])
     #ax.fill_between(x, where(h>1, h, 1) , where(l>1, l, 1), alpha=0.10, color=sns.color_palette()[1])
     
-    ax.fill_between(x, where(hh>1, hh, 1) , where(ll>1, ll, 1), alpha=0.10, color=sns.color_palette()[1])
+    ax.fill_between(x, np.where(hh>1, hh, 1) , np.where(ll>1, ll, 1), alpha=0.10, color=sns.color_palette()[1])
     
     #ax.plot_date(x, m, ls='-', marker='', xdate=True, color=sns.color_palette()[0])
     ax.plot(x, line_1, ls='dotted', color = sns.xkcd_rgb["light grey"], lw=3)
@@ -241,6 +255,9 @@ for idx, ((k,fit), ax) in enumerate(zip(state_fits.items(), axes.flatten())):
 else:
     [ax.set_visible(False) for ax in axes.flatten()[idx+1:]]
 
+# %%
+# reset to orig palette
+sns.set_palette('colorblind')
 
 # %% [markdown]
 # Here is a nice plot that shows the distribution of $R_t$ at the latest day of sampling, ordered by its median value:
@@ -251,22 +268,22 @@ nd = 1000
 
 d = {'state': [], 'Rt': []}
 for k, f in state_fits.items():
-    d = {'state': concatenate((d['state'], (k,)*(nc*nd))), 
-         'Rt': concatenate((d['Rt'], f.posterior.Rt[:,:,-1].values.flatten()))}
+    d = {'state': np.concatenate((d['state'], (k,)*(nc*nd))), 
+         'Rt': np.concatenate((d['Rt'], f.posterior.Rt[:,:,-1].values.flatten()))}
 df = pd.DataFrame(d)
 
-sort_Rts = [median(fit.posterior.Rt[:,:,-1]) for fit in state_fits.values()]
-state_order = array(list(state_fits.keys()))[argsort(sort_Rts)]
+sort_Rts = [np.median(fit.posterior.Rt[:,:,-1]) for fit in state_fits.values()]
+state_order = np.array(list(state_fits.keys()))[np.argsort(sort_Rts)]
 
 # %% [markdown]
 # Compare to http://rt.live:
 
 # %%
-figure(figsize=(24,4))
+plt.figure(figsize=(24,4))
 sns.boxplot(x='state', y='Rt', data=df, order=state_order, fliersize=0, whis=1.0/1.35, )
-axhline(1, color='k')
-xticks(rotation=90)
-axis(ymin=0, ymax=2.5)
+plt.axhline(1, color='k')
+plt.xticks(rotation=90)
+plt.axis(ymin=0, ymax=2.5)
 
 # %% [markdown]
 # Should check in on this model for $\tau$---in the states where it is well-measured, we favor a slightly smaller $\tau$ than the default prior.  Might be worth building a hierarchical model to re-infer $\tau$ from the national data....  Black line is the prior.
@@ -275,9 +292,12 @@ axis(ymin=0, ymax=2.5)
 with sns.color_palette('husl', n_colors=len(state_fits)):
     for f in state_fits.values():
         sns.kdeplot(f.posterior.tau.values.flatten())
-xs = linspace(0, 20, 1024)
-plot(xs, ss.lognorm(0.57, scale=exp(1.4)).pdf(xs), color='k')
-axis(xmin=0,xmax=12)
+xs = np.linspace(0, 20, 1024)
+plt.plot(xs, ss.lognorm(0.57, scale=np.exp(1.4)).pdf(xs), color='k')
+plt.axis(xmin=0,xmax=12)
 
-xlabel(r'$\tau$ ($\mathrm{d}$)')
+plt.xlabel(r'$\tau$ ($\mathrm{d}$)')
 
+
+
+# %%
