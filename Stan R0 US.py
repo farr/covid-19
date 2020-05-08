@@ -57,101 +57,18 @@ from matplotlib import pyplot as plt
 sns.set_context('notebook')
 sns.set_palette('colorblind')
 
-# %%
-loc_europe_EU = [
-	'Austria', 
-	'Belgium', 
-	'Bulgaria', 
-	'Croatia', 
-	'Cyprus', 
-	'Czech Republic', 
-	'Denmark', 
-	'Estonia', 
-	'Finland', 
-	'France', 
-	'Germany', 
-	'Greece', 
-	'Hungary', 
-	'Ireland', 
-	'Italy', 
-	'Latvia', 
-	'Lithuania', 
-	'Luxembourg', 
-	'Malta', 
-	'Netherlands', 
-	'Poland', 
-	'Portugal', 
-	'Romania', 
-	'Slovakia', 
-	'Slovenia', 
-	'Spain', 
-	'Sweden']
-
-loc_europe_others = [
-	'Norway',
-	'United Kingdom',
-	'Switzerland']
-
-loc_non_europe = [
-	'United States',
-	'Russia']
-
-ACTIVE_COUNTRIES = list(set(loc_europe_EU + loc_europe_others + loc_non_europe))
-
-# %%
-def write_to_file(obj, name, ext):
-    filename = 'data/' + name + '.' + ext
-    try:
-        obj.to_excel(filename)
-    except:
-        print("no folder, creating...")
-        # import the os module
-        import os
-
-        # detect the current working directory
-        path = os.getcwd()
-        dirpath = path + "/data"
-        print ("Path to created folder is %s" % dirpath)
-        os.mkdir(dirpath)
-        states.to_excel(filename)
-
 
 # %% [markdown]
-#  Download the dataset from Our World In Data (github rep)
+#  Download the dataset from https://covidtracking.com
 
 # %%
-url = 'https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/owid-covid-data.csv'
+url='https://covidtracking.com/api/v1/states/daily.csv'
 states = pd.read_csv(url,
-                     usecols=[1,2,3],
-                     names=['state', 'date', 'positive'],
-                     header=0,
-                     parse_dates=['date']).sort_index()
-states = states[states['state'].isin(ACTIVE_COUNTRIES)]
-
-# write to file
-write_to_file(states, 'stan_debug_pre', 'xlsx')
-
-# fix cumulative negatives in cases
-def adjust_negatives(states):
-
-    p = states.shift(-1)
-    states.loc[(states.state == p.state) & (states.positive > p.positive), 'positive'] = p.positive
-    
-    p = states.shift(-1)
-    if (((states.state == p.state) & (states.positive > p.positive)).any()):
-        states = adjust_negatives(states)
-        return states
-    else:
-        return states
-
-states = adjust_negatives(states)
-states.positive = states.positive.apply(lambda x: int(x))
-
-# write to file
-write_to_file(states, 'stan_debug_post', 'xlsx')
-
-states = states.set_index(['state', 'date'])
-states = states.sort_index()
+                     usecols=['date', 'state', 'positive', 'negative'],
+                     parse_dates=['date'],
+                     index_col=['state', 'date'],
+                     squeeze=True).sort_index()
+states['total'] = states['positive'] + states['negative']
 
 
 # %% [markdown]
@@ -195,9 +112,9 @@ serial_std = 2.9
 #  Smoothing has been a constant issue; there are weird day-by-day trends in the data.  For example, here is the time-series of log-odds for NY:
 
 # %%
-# ny = states.loc['NY']
+ny = states.loc['NY']
 
-# (log(ny['positive'].diff().dropna() + 1) - log(ny['total'].diff().dropna() - ny['positive'].diff().dropna() + 1)).plot()
+(log(ny['positive'].diff().dropna() + 1) - log(ny['total'].diff().dropna() - ny['positive'].diff().dropna() + 1)).plot()
 
 
 # %% [markdown]
@@ -257,10 +174,10 @@ sigma_scale = 0.05
 #  Here we do my home state (NY) by hand, just to show aspects of the data processing, fitting, and plotting; stay tuned for the bulk run.  Note that we cut out samples from a time before the state has tested (cumulatively) 1000 people, since these are the "junk" above.
 
 # %%
-one_state = states.loc['Sweden']
-istart = np.where(one_state['positive'] > 100)[0][0]
-one_state = one_state.iloc[istart:]
-pos = one_state['positive'].diff().dropna().rolling(int(round(5*smooth_std)), min_periods=1, center=True, win_type='gaussian').mean(std=smooth_std)
+ny = states.loc['NY']
+istart = np.where(ny['total'] > 1000)[0][0]
+ny = ny.iloc[istart:]
+pos = ny['positive'].diff().dropna().rolling(int(round(5*smooth_std)), min_periods=1, center=True, win_type='gaussian').mean(std=smooth_std)
 
 pos.plot()
 
@@ -340,13 +257,13 @@ m_bad[m_bad <= 0.98] = np.nan
 fig, ax = plt.subplots()
 ax.plot(x, m_good, ls='-', marker='', lw=1.5, color=sns.color_palette()[0])
 ax.plot(x, m_bad, ls='-', marker='', lw=1.5, color=sns.color_palette()[1])
-
+    
 ax.fill_between(x, np.where(hh<1, hh, 1) , np.where(ll<1, ll, 1), alpha=0.10, color=sns.color_palette()[0])
 ax.fill_between(x, np.where(hh>1, hh, 1) , np.where(ll>1, ll, 1), alpha=0.10, color=sns.color_palette()[1])
 
 ax.plot(x, line_1, ls='dotted', color = sns.xkcd_rgb["light grey"], lw=3)
 
-ax.set_title('Sweden')
+ax.set_title('NY')
 
 plt.setp(ax.xaxis.get_majorticklabels(), rotation=45)
 ax.set_ylabel(r'$R_t$')
@@ -384,7 +301,7 @@ plt.plot(xs, ss.lognorm(0.57, scale=np.exp(1.4)).pdf(xs), '-k')
 def fit_state(states, state_key):
     st = states.loc[state_key]
     
-    istart = np.where(st['positive'] > 100)[0][0]
+    istart = np.where(st['total'] > 1000)[0][0]
     st = st.iloc[istart:]
 
     pos = st['positive'].diff().dropna().rolling(int(round(5*smooth_std)), min_periods=1, center=True, win_type='gaussian').mean(std=smooth_std)
@@ -464,10 +381,10 @@ def load_state_fits(directory):
     for f in glob.glob(os.path.join(directory, '*.nc')):
         k = os.path.splitext(os.path.split(f)[1])[0]
         fits[k] = az.from_netcdf(f)
-    return fits
+        return fits
 
 # %%
-save_state_fits(state_fits, 'state_fits_EUW')
+save_state_fits(state_fits, 'state_fits_US')
 
 
 # %% [markdown]
@@ -485,7 +402,7 @@ save_state_fits(state_fits, 'state_fits_EUW')
 sns.set_palette(rtlive)
 
 # %%
-nc = 3
+nc = 4
 nr = 11
 # temporarily limit states for plot testing
 # state_count = 12
@@ -497,7 +414,7 @@ for idx, ((k,fit), ax) in enumerate(zip(state_fits.items(), axes.flatten())):
     
     #if count >= state_count:
     #    break
-    
+
     m = np.median(fit.posterior.Rt, axis=(0,1))
     hh = np.percentile(fit.posterior.Rt, 97.5, axis=(0,1))
     h = np.percentile(fit.posterior.Rt, 84, axis=(0,1))
@@ -515,11 +432,11 @@ for idx, ((k,fit), ax) in enumerate(zip(state_fits.items(), axes.flatten())):
     
     ax.plot(x, m_good, ls='-', marker='', lw=1.5, color=sns.color_palette()[0])
     ax.plot(x, m_bad, ls='-', marker='', lw=1.5, color=sns.color_palette()[1])
-    
+
     good_dates = m <= 1.0
     bad_dates = m > 1.0
-    
-    ax.fill_between(x, np.where(hh<1, hh, 1) , np.where(ll<1, ll, 1), alpha=0.10, color=sns.color_palette()[0])  
+ 
+    ax.fill_between(x, np.where(hh<1, hh, 1) , np.where(ll<1, ll, 1), alpha=0.10, color=sns.color_palette()[0])
     ax.fill_between(x, np.where(hh>1, hh, 1) , np.where(ll>1, ll, 1), alpha=0.10, color=sns.color_palette()[1])
     
     #ax.plot_date(x, m, ls='-', marker='', xdate=True, color=sns.color_palette()[0])
